@@ -8,7 +8,8 @@
 //
 // Lowercase letters sit on rows 1-3 and only ascenders (`b d f h k l t`) reach
 // into row 0; digits are full height. Capitals are drawn as lowercase. A half
-// block ▀ at the bottom puts a letter's baseline at the middle of row 3.
+// block ▀ at the bottom puts a letter's baseline at the middle of row 3, so every
+// letter ends there except the descenders (`p q y`) and the underscore.
 //
 // Glyph vocabulary, interpreted by glyphs() in tui.tsx:
 //   █ ▀ ▄  literal blocks
@@ -33,7 +34,7 @@ const FONT: Record<string, string[]> = {
   h: ["▄    ", "█▀▀▀▄", "█   █", "▀   ▀"],
   i: ["▀", "█", "█", "▀"],
   j: ["  ▀", "  █", "  █", "▀▀▀"],
-  k: ["     ", "█ ▄▀▀", "██▀  ", "█ ▀▄▄"],
+  k: ["     ", "█ ▄▀▀", "██▀▄ ", "▀  ▀▀"],
   l: ["▄", "█", "█", "▀"],
   m: ["       ", "█▀▀█▀▀█", "█  █  █", "▀  ▀  ▀"],
   n: ["     ", "█▀▀▀▄", "█   █", "▀   ▀"],
@@ -45,10 +46,10 @@ const FONT: Record<string, string[]> = {
   t: ["▄   ", "█▀▀▀", "█   ", "▀▀▀▀"],
   u: ["     ", "█   █", "█   █", "▀▀▀▀▀"],
   v: ["     ", "█   █", "▀▄ ▄▀", "  ▀  "],
-  w: ["       ", "█  █  █", "█  █  █", "▀▄▀ ▀▄▀"],
-  x: ["     ", "▀▄ ▄▀", "  █  ", "▄▀ ▀▄"],
+  w: ["       ", "█  █  █", "█  █  █", "▀▀▀▀▀▀▀"],
+  x: ["     ", "▀▄ ▄▀", "  █  ", "▀▀ ▀▀"],
   y: ["     ", "█   █", "▀▄▄▄█", "▄▄▄▄▀"],
-  z: ["     ", "▀▀▀▀█", " ▄▀  ", "█▀▀▀▀"],
+  z: ["     ", "▀▀▀▀▀", " ▄▀  ", "▀▀▀▀▀"],
   "0": ["█▀▀▀█", "█   █", "█   █", "▀▀▀▀▀"],
   "1": ["▄█ ", " █ ", " █ ", "▀▀▀"],
   "2": ["█▀▀▀█", "  ▄▄▀", "▄▀   ", "▀▀▀▀▀"],

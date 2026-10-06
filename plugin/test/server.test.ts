@@ -183,7 +183,7 @@ test("names the provider after its host", () => {
 describe("wordmark", () => {
   test("draws the default title as the ckode logo, split ck + ode", () => {
     expect(wordmark(DEFAULT_TITLE)).toEqual({
-      left: ["           ", "█▀▀▀▀ █ ▄▀▀", "█____ ██▀  ", "▀▀▀▀▀ █ ▀▄▄"],
+      left: ["           ", "█▀▀▀▀ █ ▄▀▀", "█____ ██▀▄ ", "▀▀▀▀▀ ▀  ▀▀"],
       right: ["          ▄      ".slice(0, 17), "█▀▀▀█ █▀▀▀█ █▀▀▀█", "█___█ █___█ █^^^^", "▀▀▀▀▀ ▀▀▀▀▀ ▀▀▀▀▀"],
     })
   })
