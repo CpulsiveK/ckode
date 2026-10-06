@@ -2,7 +2,7 @@ import type { TuiPlugin, TuiPluginApi } from "@opencode-ai/plugin/tui"
 import { RGBA, TextAttributes } from "@opentui/core"
 import path from "path"
 import { For, type JSX } from "solid-js"
-import { brand, logo } from "./logo"
+import { logo } from "./logo"
 
 /**
  * TUI half of ckode: the logo, the brand theme and the terminal title.
@@ -42,9 +42,6 @@ function retitle(api: TuiPluginApi) {
   })
 }
 
-// Fixed rather than themed: the brand mark should read as the same orange in every theme.
-const BRAND = RGBA.fromHex(brand)
-
 function Logo(props: { api: TuiPluginApi }) {
   const theme = () => props.api.theme.current
   return (
@@ -53,7 +50,7 @@ function Logo(props: { api: TuiPluginApi }) {
         <For each={logo.left}>
           {(line, index) => (
             <box flexDirection="row" gap={1}>
-              <box flexDirection="row">{glyphs(line, BRAND, theme().background, true)}</box>
+              <box flexDirection="row">{glyphs(line, theme().textMuted, theme().background, false)}</box>
               <box flexDirection="row">{glyphs(logo.right[index()], theme().text, theme().background, true)}</box>
             </box>
           )}
