@@ -22,6 +22,20 @@ curl -fsSL https://github.com/CpulsiveK/ckode/releases/latest/download/install.s
 
 Then open a new terminal so `ckode` is on your PATH.
 
+### Make it your own
+
+Pass a title when you install and anyone can rebrand ckode as theirs. The title is the name shown in the home-screen logo, the terminal title, `--version`, the provider menu and the installer messages:
+
+```bash
+curl -fsSL https://github.com/CpulsiveK/ckode/releases/latest/download/install.sh | bash -s -- --title "My Agent"
+```
+
+```powershell
+& ([scriptblock]::Create((irm https://github.com/CpulsiveK/ckode/releases/latest/download/install.ps1))) -Title "My Agent"
+```
+
+(`CKODE_TITLE` works too, for installs where you can't pass a flag.) A title is up to 24 letters, digits, spaces, dots, hyphens and underscores, and is drawn as a block-letter wordmark in the same two-tone style as the default, split after the first word (or in the middle of a one-word title). Titles too long to fit the terminal are shown as plain bold text. The command you type is still `ckode`. Re-running the installer, or `ckode upgrade`, keeps your title unless you pass a new one.
+
 ## Use
 
 Start ckode in the project you want to work on:
@@ -106,6 +120,7 @@ Everything is installed into `~/.ckode` (`%USERPROFILE%\.ckode` on Windows; `CKO
 | `plugin/src/server.ts` | `config` hook: registers the configured provider, fills its models from the server's `/models`, forces `enabled_providers: ["ckode", "opencode"]` (the second is OpenCode's free models) and `autoupdate: false`. `auth` hook: API-key login |
 | `plugin/src/gateway.ts` | `/v1/models` + `/v1/model/info`: per-key model scoping, limits, per-million pricing, mode filtering |
 | `plugin/src/tui.tsx` | `home_logo` slot (wordmark), brand theme, terminal title |
+| `plugin/src/wordmark.ts` | The block-letter font and the title rules behind `--title` |
 
 ## Releasing
 

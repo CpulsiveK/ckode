@@ -3,6 +3,7 @@ import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import { FALLBACK_LIMIT, keyFromEnv, loadCatalog, perMillion, providerName } from "../src/gateway"
+import { DEFAULT_TITLE, MAX_TITLE, parseTitle, wordmark, wordmarkWidth } from "../src/wordmark"
 import plugin, { catalogFor, resolveBaseURL, resolveName, storedKey } from "../src/server"
 
 // A stand-in gateway speaking LiteLLM's shapes; each test picks its behaviour by path prefix.
@@ -177,4 +178,53 @@ test("resolveName trims and tolerates absence", () => {
 test("names the provider after its host", () => {
   expect(providerName("http://localhost:11434/v1")).toBe("localhost:11434")
   expect(providerName("https://gateway.example.com/v1")).toBe("gateway.example.com")
+})
+
+describe("wordmark", () => {
+  test("draws the default title as the ckode logo, split ck + ode", () => {
+    expect(wordmark(DEFAULT_TITLE)).toEqual({
+      left: ["           ", "█▀▀▀▀ █ ▄▀▀", "█____ ██▀  ", "▀▀▀▀▀ █ ▀▄▄"],
+      right: ["          ▄      ".slice(0, 17), "█▀▀▀█ █▀▀▀█ █▀▀▀█", "█___█ █___█ █^^^^", "▀▀▀▀▀ ▀▀▀▀▀ ▀▀▀▀▀"],
+    })
+  })
+
+  test("every row of a half is the same width, whatever the title", () => {
+    for (const title of ["a", "my app", "Acme Corp 2", "a.b-c_d", "abcdefghijklmnopqrstuvwxyz", "0123456789"]) {
+      const mark = wordmark(title)
+      for (const half of [mark.left, mark.right]) {
+        expect(half).toHaveLength(4)
+        expect(new Set(half.map((row) => [...row].length)).size).toBe(1)
+      }
+    }
+  })
+
+  test("splits after the first word, or in the middle of a single word", () => {
+    // "acme" is "ac" + "me"
+    expect(wordmark("acme").left[1]).toBe("▄▀▀▀▄ █▀▀▀▀")
+    expect(wordmark("acme").right[1]).toBe("█▀▀█▀▀█ █▀▀▀█")
+    // "my app" is "my" + a wider gap + "app"
+    expect(wordmark("my app").left[1]).toBe("█▀▀█▀▀█ █   █")
+    expect(wordmark("my app").right[1]).toBe("    ▄▀▀▀▄ █▀▀▀█ █▀▀▀█")
+  })
+
+  test("treats capitals as lowercase", () => {
+    expect(wordmark("ACME")).toEqual(wordmark("acme"))
+  })
+
+  test("a very long title is wider than the terminal limit", () => {
+    expect(wordmarkWidth(wordmark("abcdefghijklmnopqrstuvwx"))).toBeGreaterThan(64)
+    expect(wordmarkWidth(wordmark("ckode"))).toBeLessThan(64)
+  })
+})
+
+test("parseTitle defaults when empty and rejects anything unsafe to store", () => {
+  expect(parseTitle(undefined)).toBe(DEFAULT_TITLE)
+  expect(parseTitle("   ")).toBe(DEFAULT_TITLE)
+  expect(parseTitle("  My   App ")).toBe("My App")
+  expect(parseTitle("acme.dev-1_x")).toBe("acme.dev-1_x")
+  expect(parseTitle('say "hi"')).toBeUndefined()
+  expect(parseTitle("a;b")).toBeUndefined()
+  expect(parseTitle("100%")).toBeUndefined()
+  expect(parseTitle("$HOME")).toBeUndefined()
+  expect(parseTitle("a".repeat(MAX_TITLE + 1))).toBeUndefined()
 })

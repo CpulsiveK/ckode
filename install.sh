@@ -5,6 +5,9 @@
 #
 #   curl -fsSL https://github.com/CpulsiveK/ckode/releases/latest/download/install.sh | bash
 #
+# To make it your own, pass a title (the name shown in the logo and terminal):
+#   curl -fsSL .../install.sh | bash -s -- --title "My Agent"
+#
 # Run from a checkout it installs the files beside it; piped from a release it
 # downloads the bundle published with that same release.
 #
@@ -23,6 +26,7 @@ LATEST_INSTALLER_URL="__LATEST_INSTALLER_URL__"
 home="${CKODE_HOME:-$HOME/.ckode}"
 version="$OPENCODE_VERSION"
 bundle=""
+title="${CKODE_TITLE:-}"
 stamped() { case "$1" in __*__) echo "" ;; *) echo "$1" ;; esac; }
 release_version="$(stamped "$CKODE_VERSION")"
 bundle_url="${CKODE_BUNDLE_URL:-$(stamped "$BUNDLE_URL")}"
@@ -30,8 +34,11 @@ installer_url="${CKODE_INSTALLER_URL:-$(stamped "$LATEST_INSTALLER_URL")}"
 
 usage() {
   cat <<EOF
-Usage: install.sh [--version <opencode version>] [--bundle <dir>]
+Usage: install.sh [--title <name>] [--version <opencode version>] [--bundle <dir>]
 
+  --title     The name shown in the logo, terminal title and messages (default: ckode, or the
+              title of an existing install). Up to 24 letters, digits, spaces, dots, hyphens
+              and underscores. The command is still ckode. CKODE_TITLE does the same.
   --version   Override the pinned OpenCode version ($OPENCODE_VERSION); for evaluating a new release
   --bundle    Directory holding plugin/ and launcher/ (default: beside this script)
 EOF
@@ -39,12 +46,26 @@ EOF
 
 while [ $# -gt 0 ]; do
   case "$1" in
+    --title) [ $# -ge 2 ] || { echo "--title needs a value" >&2; exit 1; }; title="$2"; shift 2 ;;
     --version) version="${2:?--version needs a value}"; version="${version#v}"; shift 2 ;;
     --bundle) bundle="${2:?--bundle needs a value}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
   esac
 done
+
+# Normalise the title: trim, collapse spaces, and refuse anything that could not be
+# stored safely in the settings file. Keep in step with parseTitle in plugin/src/wordmark.ts.
+title="$(printf '%s' "$title" | tr -s '[:space:]' ' ' | sed 's/^ //;s/ $//')"
+if [ -z "$title" ] && [ -f "$home/settings" ]; then
+  # Re-installing or upgrading keeps the title the user chose.
+  title="$(. "$home/settings" 2>/dev/null; printf '%s' "${TITLE:-}")"
+fi
+title="${title:-ckode}"
+if [ "${#title}" -gt 24 ] || ! printf '%s' "$title" | grep -Eq '^[A-Za-z0-9 ._-]+$'; then
+  echo "Invalid --title '$title': use up to 24 letters, digits, spaces, dots, hyphens or underscores." >&2
+  exit 1
+fi
 
 is_bundle() { [ -d "$1/plugin/src" ] && [ -f "$1/launcher/ckode" ] && [ -f "$1/install.sh" ]; }
 
@@ -145,6 +166,7 @@ install_bundle() {
 
   cat >"$home/settings" <<EOF
 CKODE_VERSION="$release_version"
+TITLE="$title"
 OPENCODE_VERSION="$version"
 INSTALLER_URL="$installer_url"
 EOF
@@ -186,7 +208,7 @@ install_opencode
 install_bundle
 prune_old
 add_to_path
-echo "ckode ${release_version:-(local)} installed (OpenCode $version)."
+echo "$title ${release_version:-(local)} installed (OpenCode $version)."
 if command -v ckode >/dev/null 2>&1; then
   echo "Run: ckode"
 else

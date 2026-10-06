@@ -2,13 +2,16 @@ import type { TuiPlugin, TuiPluginApi } from "@opencode-ai/plugin/tui"
 import { RGBA, TextAttributes } from "@opentui/core"
 import path from "path"
 import { For, type JSX } from "solid-js"
-import { logo } from "./logo"
+import { DEFAULT_TITLE, MAX_WIDTH, parseTitle, wordmark, wordmarkWidth } from "./wordmark"
 
 /**
  * TUI half of ckode: the logo, the brand theme and the terminal title.
  * Everything here goes through public plugin API except the title, which
- * OpenCode hard-codes; see retitle().
+ * OpenCode hard-codes; see retitle(). The product title comes from the
+ * installer's --title, which the launcher passes as CKODE_TITLE.
  */
+const title = parseTitle(process.env["CKODE_TITLE"]) ?? DEFAULT_TITLE
+
 const tui: TuiPlugin = async (api) => {
   await api.theme.install(path.join(import.meta.dir, "..", "themes", "ckode.json"))
   // Only replace the stock default, so a theme the user picked themselves survives.
@@ -33,25 +36,35 @@ export default { id: "ckode.brand", tui }
 function retitle(api: TuiPluginApi) {
   const renderer = api.renderer
   const original = renderer.setTerminalTitle.bind(renderer)
-  const rebrand = (title: string) => title.replace(/^OpenCode$/, "ckode").replace(/^OC \| /, "ckode | ")
-  renderer.setTerminalTitle = (title: string) => original(rebrand(title))
+  const rebrand = (text: string) => text.replace(/^OpenCode$/, title).replace(/^OC \| /, `${title} | `)
+  renderer.setTerminalTitle = (text: string) => original(rebrand(text))
   // The host may have titled the terminal before this plugin loaded.
-  if (api.route.current.name === "home") original("ckode")
+  if (api.route.current.name === "home") original(title)
   api.lifecycle.onDispose(() => {
     renderer.setTerminalTitle = original
   })
 }
 
+const mark = wordmark(title)
+
 function Logo(props: { api: TuiPluginApi }) {
   const theme = () => props.api.theme.current
+  // A title too long to draw as a wordmark is shown as plain bold text.
+  if (wordmarkWidth(mark) > MAX_WIDTH) {
+    return (
+      <text fg={theme().text} attributes={TextAttributes.BOLD} selectable={false}>
+        {title}
+      </text>
+    )
+  }
   return (
     <box flexDirection="row" gap={2}>
       <box>
-        <For each={logo.left}>
+        <For each={mark.left}>
           {(line, index) => (
             <box flexDirection="row" gap={1}>
               <box flexDirection="row">{glyphs(line, theme().textMuted, theme().background, false)}</box>
-              <box flexDirection="row">{glyphs(logo.right[index()], theme().text, theme().background, true)}</box>
+              <box flexDirection="row">{glyphs(mark.right[index()], theme().text, theme().background, true)}</box>
             </box>
           )}
         </For>

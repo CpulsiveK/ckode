@@ -7,10 +7,15 @@
 # With options (piped scripts cannot take parameters):
 #   & ([scriptblock]::Create((irm https://github.com/CpulsiveK/ckode/releases/latest/download/install.ps1))) -Version <opencode version>
 #
+# To make it your own, pass a title (the name shown in the logo and terminal):
+#   & ([scriptblock]::Create((irm https://github.com/CpulsiveK/ckode/releases/latest/download/install.ps1))) -Title "My Agent"
+# or set $env:CKODE_TITLE first when piping to iex.
+#
 # Works on Windows PowerShell 5.1, which every supported Windows ships with.
 # Run under `iex`, so it must never call `exit`: that would close the user's
 # window. Failures throw instead. Mirrors install.sh; keep the two in step.
 param(
+  [string] $Title = "",
   [string] $Version = "",
   [string] $Bundle = "",
   [switch] $NoModifyPath
@@ -36,6 +41,22 @@ $version_ = if ($Version) { $Version.TrimStart("v") } else { $OpenCodeVersion }
 $releaseVersion = Stamped $ckodeVersion
 $bundleUrl_ = if ($env:CKODE_BUNDLE_URL) { $env:CKODE_BUNDLE_URL } else { Stamped $BundleUrl }
 $installerUrl = if ($env:CKODE_INSTALLER_URL) { $env:CKODE_INSTALLER_URL } else { Stamped $LatestInstallerUrl }
+# The title is trimmed, and refused if it could not be stored safely in
+# settings.cmd. Keep in step with install.sh and parseTitle in plugin/src/wordmark.ts.
+if (-not $Title) { $Title = $env:CKODE_TITLE }
+$Title = ("$Title" -replace "\s+", " ").Trim()
+if (-not $Title) {
+  # Re-installing or upgrading keeps the title the user chose.
+  $existing = Join-Path $home_ "settings.cmd"
+  if (Test-Path $existing) {
+    $line = Get-Content $existing | Where-Object { $_ -like '@set "TITLE=*' } | Select-Object -First 1
+    if ($line) { $Title = $line.Substring(12).TrimEnd('"').Replace("%%", "%") }
+  }
+}
+if (-not $Title) { $Title = "ckode" }
+if ($Title.Length -gt 24 -or $Title -notmatch '^[A-Za-z0-9 ._-]+$') {
+  Fail "invalid -Title '$Title': use up to 24 letters, digits, spaces, dots, hyphens or underscores."
+}
 # Piped through iex the script takes no switches, so CI and tests use this.
 if ($env:CKODE_NO_MODIFY_PATH) { $NoModifyPath = $true }
 
@@ -147,6 +168,7 @@ function Install-Bundle([string] $from) {
   # Read by the launcher with `call`; % would be expanded there, so double it.
   $settings = @(
     "@set ""CKODE_VERSION=$releaseVersion"""
+    "@set ""TITLE=$Title"""
     "@set ""OPENCODE_VERSION=$version_"""
     "@set ""INSTALLER_URL=$installerUrl"""
     "@set ""PLUGIN_PATH=$pluginPath"""
@@ -215,7 +237,7 @@ try {
 }
 
 $label = if ($releaseVersion) { $releaseVersion } else { "(local)" }
-Write-Host "ckode $label installed (OpenCode $version_)."
+Write-Host "$Title $label installed (OpenCode $version_)."
 if ($NoModifyPath) {
   Write-Host "Run: $(Join-Path $home_ 'bin\ckode.cmd')"
 } else {

@@ -11,8 +11,11 @@ setlocal
 set "AC_HOME=%USERPROFILE%\.ckode"
 if defined CKODE_HOME set "AC_HOME=%CKODE_HOME%"
 if not exist "%AC_HOME%\settings.cmd" goto :not_installed
-rem Provides CKODE_VERSION, OPENCODE_VERSION, INSTALLER_URL and PLUGIN_PATH.
+rem Provides CKODE_VERSION, TITLE, OPENCODE_VERSION, INSTALLER_URL and PLUGIN_PATH.
 call "%AC_HOME%\settings.cmd"
+if not defined TITLE set "TITLE=ckode"
+rem The plugin draws this as the logo and terminal title; the menu shows it too.
+set "CKODE_TITLE=%TITLE%"
 
 set "AC_BIN=%AC_HOME%\opencode\%OPENCODE_VERSION%\opencode.exe"
 if not exist "%AC_BIN%" goto :missing_opencode
@@ -76,13 +79,14 @@ exit /b %errorlevel%
 :version
 set "AC_LABEL=%CKODE_VERSION%"
 if not defined AC_LABEL set "AC_LABEL=(local)"
-echo ckode %AC_LABEL% (OpenCode %OPENCODE_VERSION%)
+echo %TITLE% %AC_LABEL% (OpenCode %OPENCODE_VERSION%)
 exit /b 0
 
 :upgrade
 if not defined INSTALLER_URL goto :no_installer
+rem Keep the installed title unless the user passes another -Title.
 rem TLS 1.2 is not the default for Windows PowerShell 5.1 on every machine.
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor 3072; & ([scriptblock]::Create((Invoke-RestMethod '%INSTALLER_URL%')))"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor 3072; & ([scriptblock]::Create((Invoke-RestMethod '%INSTALLER_URL%'))) -Title '%TITLE%'"
 exit /b %errorlevel%
 
 :not_installed

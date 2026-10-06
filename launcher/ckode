@@ -9,9 +9,10 @@ if [ ! -f "$settings" ]; then
   echo "ckode: not installed correctly ($settings is missing). Re-run the installer." >&2
   exit 1
 fi
-# Provides CKODE_VERSION, OPENCODE_VERSION and INSTALLER_URL.
+# Provides CKODE_VERSION, TITLE, OPENCODE_VERSION and INSTALLER_URL.
 # shellcheck source=/dev/null
 . "$settings"
+TITLE="${TITLE:-ckode}"
 
 bin="$home/opencode/$OPENCODE_VERSION/opencode"
 if [ ! -x "$bin" ]; then
@@ -27,13 +28,14 @@ if [ "${1:-}" = "upgrade" ]; then
     echo "ckode: this install has no installer URL to upgrade from. Re-run install.sh from a new ckode bundle." >&2
     exit 1
   fi
-  curl -fsSL "$INSTALLER_URL" | bash -s -- "$@"
+  # Keep the installed title unless the user passes another --title.
+  curl -fsSL "$INSTALLER_URL" | bash -s -- --title "$TITLE" "$@"
   exit
 fi
 
 # OpenCode's --version only knows its own number; report both.
 if [ $# -eq 1 ] && { [ "$1" = "--version" ] || [ "$1" = "-v" ]; }; then
-  echo "ckode ${CKODE_VERSION:-(local)} (OpenCode $OPENCODE_VERSION)"
+  echo "$TITLE ${CKODE_VERSION:-(local)} (OpenCode $OPENCODE_VERSION)"
   exit
 fi
 
@@ -108,7 +110,7 @@ menu() {
   local choice line i name url
   while true; do
     echo
-    echo "${bold}ckode${reset}  choose a provider"
+    echo "${bold}$TITLE${reset}  choose a provider"
     echo
     echo "  ${green}●${reset} 1) ${bold}opencode${reset}  free models  ${green}(default)${reset}"
     i=2
@@ -167,5 +169,7 @@ fi
 # The plugin itself enforces the provider lock from inside the config hook.
 export OPENCODE_CONFIG_CONTENT="{\"plugin\":[[\"file://$home/plugin\",$plugin_options]]}"
 export OPENCODE_TUI_CONFIG="$home/tui.json"
+# The plugin draws this as the logo and terminal title.
+export CKODE_TITLE="$TITLE"
 
 exec "$bin" "$@"

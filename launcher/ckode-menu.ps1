@@ -80,7 +80,8 @@ if ($Add) {
 while ($true) {
   $all = Read-All
   Write-Host ""
-  Write-Host "ckode  choose a provider"
+  $title = if ($env:CKODE_TITLE) { $env:CKODE_TITLE } else { "ckode" }
+  Write-Host "$title  choose a provider"
   Write-Host ""
   Write-Host "  " -NoNewline
   Write-Host "*" -ForegroundColor Green -NoNewline

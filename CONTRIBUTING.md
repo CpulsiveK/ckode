@@ -222,7 +222,7 @@ ckode/
 │   │   ├── server.ts          config hook (provider + lock) and auth hook
 │   │   ├── gateway.ts         /v1/models + /v1/model/info → OpenCode model entries
 │   │   ├── tui.tsx            Logo slot, theme, terminal title
-│   │   └── logo.ts            ckode wordmark
+│   │   └── wordmark.ts        Block-letter font and title rules (installer --title)
 │   ├── themes/ckode.json  Orange theme (#f97316), derived from OpenCode's default
 │   └── test/server.test.ts    Tests against a stand-in gateway
 ├── script/
