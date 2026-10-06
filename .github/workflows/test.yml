@@ -1,0 +1,65 @@
+name: test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - name: Plugin
+        working-directory: plugin
+        run: |
+          bun install --frozen-lockfile
+          bun test
+          bunx tsc -p .
+      - name: Scripts
+        run: |
+          bash -n install.sh
+          bash -n launcher/ckode
+          bash -n script/release.sh
+      - name: Installers pin the same OpenCode
+        run: |
+          sh_pin=$(grep -oP '^OPENCODE_VERSION="\K[0-9][^"]*' install.sh)
+          ps_pin=$(grep -oP '^\$OpenCodeVersion = "\K[^"]+' install.ps1)
+          echo "install.sh: $sh_pin, install.ps1: $ps_pin"
+          test -n "$sh_pin" && test "$sh_pin" = "$ps_pin"
+
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        # Windows PowerShell 5.1, which is what users have, not pwsh.
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - name: Plugin
+        working-directory: plugin
+        run: |
+          bun install --frozen-lockfile
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          bun test
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Install from checkout
+        run: .\install.ps1
+      - name: Launcher
+        run: |
+          $out = & "$env:USERPROFILE\.ckode\bin\ckode.cmd" --version
+          $out
+          if ($out -notmatch '^ckode \(local\) \(OpenCode [0-9.]+\)$') { exit 1 }
+          # The installer adds bin to the user PATH in the registry.
+          $path = (Get-Item "HKCU:\Environment").GetValue("Path", "", "DoNotExpandEnvironmentNames")
+          if (($path -split ";") -notcontains "$env:USERPROFILE\.ckode\bin") { "bin not on user PATH"; exit 1 }
+          # Re-running must not add a second entry.
+          .\install.ps1
+          $path = (Get-Item "HKCU:\Environment").GetValue("Path", "", "DoNotExpandEnvironmentNames")
+          if (@($path -split ";" | Where-Object { $_ -eq "$env:USERPROFILE\.ckode\bin" }).Count -ne 1) { "duplicate PATH entry"; exit 1 }

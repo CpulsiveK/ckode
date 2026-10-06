@@ -1,0 +1,86 @@
+name: release
+
+# Push a tag like v0.1.0 to publish. Users then install with:
+#   curl -fsSL https://github.com/CpulsiveK/ckode/releases/latest/download/install.sh | bash
+#   irm https://github.com/CpulsiveK/ckode/releases/latest/download/install.ps1 | iex   (Windows)
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Test plugin
+        working-directory: plugin
+        run: |
+          bun install --frozen-lockfile
+          bun test
+          bunx tsc -p .
+
+      - name: Build release assets
+        run: |
+          base="https://github.com/${{ github.repository }}/releases"
+          script/release.sh "${GITHUB_REF_NAME#v}" "$base/download/$GITHUB_REF_NAME" "$base/latest/download"
+
+      - name: Smoke-test the stamped installer
+        run: |
+          # Installs from the built bundle (no network for ckode files), then
+          # checks the launcher runs the pinned OpenCode it downloaded.
+          mkdir -p /tmp/bundle && tar -xzf dist/ckode-bundle.tar.gz -C /tmp/bundle
+          CKODE_HOME=/tmp/ckode bash /tmp/bundle/install.sh --bundle /tmp/bundle
+          CKODE_HOME=/tmp/ckode /tmp/ckode/bin/ckode --version
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  windows:
+    needs: build
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Smoke-test the stamped Windows installer
+        run: |
+          # The same assets users download: unpack the bundle with Windows' own
+          # tar, install from it, and check both version numbers.
+          New-Item -ItemType Directory bundle | Out-Null
+          tar.exe -xzf dist\ckode-bundle.tar.gz -C bundle
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          .\bundle\install.ps1 -Bundle "$PWD\bundle"
+          $pin = (Select-String -Path dist\install.ps1 -Pattern '^\$OpenCodeVersion = "(.+)"').Matches[0].Groups[1].Value
+          $expected = "ckode $($env:GITHUB_REF_NAME.TrimStart('v')) (OpenCode $pin)"
+          $out = & "$env:USERPROFILE\.ckode\bin\ckode.cmd" --version
+          "got: $out, expected: $expected"
+          if ($out -ne $expected) { exit 1 }
+
+  publish:
+    needs: [build, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "${{ github.repository }}" --title "ckode $GITHUB_REF_NAME" --generate-notes

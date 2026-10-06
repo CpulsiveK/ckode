@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@ckode/opencode-plugin",
+  "version": "0.1.0",
+  "description": "Locks OpenCode to one OpenAI-compatible provider and brands it as ckode",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    "./server": "./src/server.ts",
+    "./tui": "./src/tui.tsx"
+  },
+  "files": [
+    "src",
+    "themes"
+  ],
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "1.18.33",
+    "@opentui/core": "0.4.5",
+    "@opentui/solid": "0.4.5",
+    "@types/bun": "1.3.13",
+    "solid-js": "1.9.10",
+    "typescript": "5.8.2"
+  }
+}

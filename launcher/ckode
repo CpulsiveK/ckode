@@ -1,0 +1,171 @@
+#!/usr/bin/env bash
+# ckode launcher: runs the pinned, unmodified OpenCode release with the
+# ckode plugin loaded. Installed by install.sh; settings live beside it.
+set -euo pipefail
+
+home="${CKODE_HOME:-$HOME/.ckode}"
+settings="$home/settings"
+if [ ! -f "$settings" ]; then
+  echo "ckode: not installed correctly ($settings is missing). Re-run the installer." >&2
+  exit 1
+fi
+# Provides CKODE_VERSION, OPENCODE_VERSION and INSTALLER_URL.
+# shellcheck source=/dev/null
+. "$settings"
+
+bin="$home/opencode/$OPENCODE_VERSION/opencode"
+if [ ! -x "$bin" ]; then
+  echo "ckode: OpenCode $OPENCODE_VERSION is missing from $home/opencode. Re-run the installer." >&2
+  exit 1
+fi
+
+# OpenCode's own upgrade would replace the binary behind the pinned version;
+# upgrades go through the installer, which only moves to evaluated releases.
+if [ "${1:-}" = "upgrade" ]; then
+  shift
+  if [ -z "$INSTALLER_URL" ]; then
+    echo "ckode: this install has no installer URL to upgrade from. Re-run install.sh from a new ckode bundle." >&2
+    exit 1
+  fi
+  curl -fsSL "$INSTALLER_URL" | bash -s -- "$@"
+  exit
+fi
+
+# OpenCode's --version only knows its own number; report both.
+if [ $# -eq 1 ] && { [ "$1" = "--version" ] || [ "$1" = "-v" ]; }; then
+  echo "ckode ${CKODE_VERSION:-(local)} (OpenCode $OPENCODE_VERSION)"
+  exit
+fi
+
+# Providers. The default is OpenCode's own free models, which need nothing.
+# Anything else is a provider the user added: a name, an OpenAI-compatible URL
+# and an optional key, kept one per line (tab separated) in $home/providers.
+# The menu runs on interactive launches; it never changes the default, so
+# pressing Enter always means OpenCode. CKODE_BASE_URL (with CKODE_API_KEY and
+# CKODE_PROVIDER_NAME) in the environment picks a provider for one run and
+# skips the menu.
+providers="$home/providers"
+TAB="$(printf '\t')"
+
+if [ -t 1 ]; then
+  green=$'\033[32m' bold=$'\033[1m' dim=$'\033[2m' reset=$'\033[0m'
+else
+  green="" bold="" dim="" reset=""
+fi
+
+ask() { # ask <prompt> [default]: the trimmed answer, or the default on Enter
+  local answer
+  read -r -p "$1" answer
+  answer="$(printf '%s' "$answer" | tr -d '[:space:]')"
+  printf '%s' "${answer:-${2:-}}"
+}
+
+# Suggested URLs for well-known names; only ever a default the user can replace.
+known_url() {
+  case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+    ollama) echo "http://localhost:11434/v1" ;;
+    lmstudio) echo "http://localhost:1234/v1" ;;
+    openai) echo "https://api.openai.com/v1" ;;
+    anthropic) echo "https://api.anthropic.com/v1" ;;
+    openrouter) echo "https://openrouter.ai/api/v1" ;;
+  esac
+}
+
+# add_provider: asks for name, URL and key, appends to $providers, sets $chosen.
+add_provider() {
+  local name url key suggestion
+  while [ -z "${name:-}" ]; do
+    name="$(ask "Provider name (e.g. ollama, anthropic): " | tr -c 'A-Za-z0-9._-' '-' | sed 's/^-*//;s/-*$//')"
+  done
+  suggestion="$(known_url "$name")"
+  url=""
+  while [ -z "$url" ]; do url="$(ask "Provider URL${suggestion:+ [$suggestion]}: " "$suggestion")"; done
+  case "$url" in http://* | https://*) ;; *) url="http://$url" ;; esac
+  url="${url%/}"
+  # A bare host:port is shorthand for its /v1 API, which is where Ollama serves it.
+  case "${url#*://}" in */*) ;; *) url="$url/v1" ;; esac
+  read -r -s -p "API key (press Enter if not needed): " key
+  echo
+  key="$(printf '%s' "$key" | tr -d '[:space:]')"
+  # Re-adding a name replaces it.
+  if [ -f "$providers" ]; then
+    grep -v "^$name$TAB" "$providers" >"$providers.tmp" || true
+    mv "$providers.tmp" "$providers"
+  fi
+  (umask 077 && printf '%s\t%s\t%s\n' "$name" "$url" "$key" >>"$providers")
+  chosen="$name$TAB$url$TAB$key"
+}
+
+remove_provider() {
+  local n
+  n="$(ask "Number to remove: ")"
+  [ -f "$providers" ] && [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -ge 2 ] || return 0
+  sed -i "$((n - 1))d" "$providers"
+}
+
+# menu: sets $chosen to a provider line, or leaves it empty for OpenCode.
+menu() {
+  local choice line i name url
+  while true; do
+    echo
+    echo "${bold}ckode${reset}  choose a provider"
+    echo
+    echo "  ${green}●${reset} 1) ${bold}opencode${reset}  free models  ${green}(default)${reset}"
+    i=2
+    if [ -f "$providers" ]; then
+      while IFS="$TAB" read -r name url _; do
+        [ -n "$name" ] && echo "    $i) $name  ${dim}$url${reset}" && i=$((i + 1))
+      done <"$providers"
+    fi
+    echo "    a) add a provider"
+    [ "$i" -gt 2 ] && echo "    r) remove a provider"
+    echo
+    choice="$(ask "Select [1]: " 1)"
+    case "$choice" in
+      1) chosen=""; return ;;
+      a | A) add_provider; return ;;
+      r | R) remove_provider ;;
+      *)
+        if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 2 ] && [ "$choice" -lt "$i" ]; then
+          chosen="$(sed -n "$((choice - 1))p" "$providers")"
+          return
+        fi
+        echo "ckode: pick a number from the list, a, or r." >&2
+        ;;
+    esac
+  done
+}
+
+if [ "${1:-}" = "connect" ]; then
+  add_provider
+  echo "Saved. Pick it from the menu next time you start ckode."
+  exit
+fi
+
+chosen=""
+# Only the interactive TUI gets the menu: no arguments, or a directory, on a terminal.
+if { [ $# -eq 0 ] || [ -d "${1:-}" ]; } && [ -t 0 ] && [ -z "${CKODE_BASE_URL:-}" ]; then
+  menu
+fi
+
+if [ -n "$chosen" ]; then
+  IFS="$TAB" read -r CKODE_PROVIDER_NAME CKODE_BASE_URL key <<<"$chosen"
+  export CKODE_PROVIDER_NAME CKODE_BASE_URL
+  [ -n "$key" ] && export CKODE_API_KEY="$key"
+fi
+if [ -n "${CKODE_BASE_URL:-}" ]; then
+  # A server that needs no key still needs some key for OpenCode to treat the
+  # provider as connected; the server ignores it.
+  export CKODE_API_KEY="${CKODE_API_KEY:-local}"
+  plugin_options="{\"baseURL\":\"$CKODE_BASE_URL\",\"name\":\"$(printf '%s' "${CKODE_PROVIDER_NAME:-}" | tr -c 'A-Za-z0-9._-' '-')\"}"
+else
+  plugin_options="{}"
+fi
+
+# Passed by environment rather than written to OpenCode's config files, so a
+# user's own opencode.json and tui.json keep working and nothing needs root.
+# The plugin itself enforces the provider lock from inside the config hook.
+export OPENCODE_CONFIG_CONTENT="{\"plugin\":[[\"file://$home/plugin\",$plugin_options]]}"
+export OPENCODE_TUI_CONFIG="$home/tui.json"
+
+exec "$bin" "$@"
